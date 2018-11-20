@@ -19,27 +19,21 @@ object Arguments {
 }
 
 fun main(args: Array<String>) {
-    val args1: Array<String> = arrayOf("-u", "kotoed.icc.spbstu.ru", "-p", "50004")
-    Arguments.use(args1)
-    //Arguments.use(args)
+    //val args1: Array<String> = arrayOf("-u", "kotoed.icc.spbstu.ru", "-p", "50005")
+    //Arguments.use(args1)
+    Arguments.use(args)
 
-    println("Hi, I am Joe")
+    println("Hi, I am YAT")
 
-    // Протокол обмена с сервером
     val protocol = Protocol(Arguments.url, Arguments.port)
-    // Состояние игрового поля
     val graph = Graph()
-    // Джо очень умный чувак, вот его ум
     val intellect = Intellect(graph, protocol)
 
-    protocol.handShake("Joe")
-
-
+    protocol.handShake("YAT")
 
     val setupData = protocol.setup()
     graph.init(setupData)
     intellect.init()
-
 
     println("Received id = ${setupData.punter}")
 
@@ -51,11 +45,11 @@ fun main(args: Array<String>) {
             is GameResult -> {
                 println("The game is over!")
                 val myScore = message.stop.scores[protocol.myId]
-                println("Joe scored ${myScore.score} points!")
+                println("YAT scored ${myScore.score} points!")
                 break@gameloop
             }
             is Timeout -> {
-                println("Joe too slow =(")
+                println("YAT too slow =(")
             }
             is GameTurnMessage -> {
                 for(move in message.move.moves) {
@@ -68,9 +62,8 @@ fun main(args: Array<String>) {
                 }
             }
         }
-
-        println("Joe thin'")
+        println("YAT thin'")
         intellect.makeMove()
-        println("Joe genius!")
+        println("YAT genius!")
     }
 }

@@ -1,7 +1,6 @@
 package ru.spbstu.competition.game
 
 import ru.spbstu.competition.protocol.data.Claim
-import ru.spbstu.competition.protocol.data.River
 import ru.spbstu.competition.protocol.data.Setup
 
 enum class VertexState{ Our, Enemy, Neutral }
@@ -9,12 +8,13 @@ enum class VertexState{ Our, Enemy, Neutral }
 class Graph {
     private class Vertex {
         val neighbors = mutableMapOf<Int, VertexState>()
-        val shortestWays = mutableMapOf<Int, Int>()
+        val distance = mutableMapOf<Int, Long>()
+        var weight = 0L
     }
 
     private class Mine(id: Int) {
         var sites = mutableSetOf(id)
-        val cantBeConnected = mutableSetOf<Int>()
+        val incompatibleSets = mutableSetOf<Int>()
     }
 
     fun init(setup: Setup) {
@@ -22,36 +22,42 @@ class Graph {
 
         for ((id) in setup.map.sites) {
             addVertex(id)
-            allSites.add(id)
         }
-        for (river in setup.map.rivers) {
-            connect(river.source, river.target)
-            setNeighborsState(river.source, river.target, VertexState.Neutral)
-            allRivers.add(river)
+        for ((source, target) in setup.map.rivers) {
+            connect(source, target)
+            setNeighborsState(source, target, VertexState.Neutral)
+            //allRivers.add(river)
         }
         for (mineId in setup.map.mines) {
             addMine(mineId)
-            findWeightsSites(mineId)
-            allMines.add(mineId)
+            findSitesWeights(mineId)
         }
+        vertices.values.forEach { vertex -> vertex.distance.keys
+                .forEach { key -> vertex.distance[key] = vertex.distance[key]!! * vertex.distance[key]!!}}
     }
 
     var myId = -1
     private val vertices = mutableMapOf<Int, Vertex>()
     private val mines = mutableMapOf<Int, Mine>()
     val ourSites = mutableSetOf<Int>()
-    val allSites = mutableSetOf<Int>()
-    val allRivers = mutableSetOf<River>()
-    val allMines = mutableSetOf<Int>()
+    //val allRivers = mutableSetOf<River>()
+
+    fun getAllMines() = mines.keys
+    fun getAllSites() = vertices.keys
 
     fun getNeighbors(id: Int) = vertices[id]!!.neighbors
-    fun getShortestWays(id: Int) = vertices[id]!!.shortestWays
-    fun getCites(mine: Int) = mines[mine]!!.sites
+    fun getDistance(id: Int) = vertices[id]!!.distance
+    fun getSites(mine: Int) = mines[mine]!!.sites
 
-    fun cantBeConnected(id: Int): MutableSet<Int> = mines[id]!!.cantBeConnected
+    fun getIncompatibleSets(id: Int): MutableSet<Int> = mines[id]!!.incompatibleSets
 
-    fun setCantBeConnected(mine: Int, cite: Int) {
-        cantBeConnected(mine).add(cite)
+    fun setIncompatibleSets(id: Int, setId: Int) {
+        getIncompatibleSets(id).add(setId)
+    }
+
+    fun getWeight(id: Int) = vertices[id]!!.weight
+    fun setWeight(id: Int, value: Long) {
+        vertices[id]!!.weight = value
     }
 
     fun addVertex(id: Int) {
@@ -66,7 +72,7 @@ class Graph {
     fun addMine(id: Int) {
         mines[id] = Mine(id)
         for (vertex in vertices) {
-            vertex.value.shortestWays.put(id, 0)
+            vertex.value.distance.put(id, 0)
         }
     }
 
@@ -100,18 +106,13 @@ class Graph {
         //if (minesContainsFirst.isEmpty() && minesContainsSecond.isEmpty()) throw IllegalArgumentException("both sites not added")
         if (minesContainsFirst.isEmpty() && minesContainsSecond.isEmpty()) return
         if (minesContainsFirst.isEmpty()) {
-            for (mineId in minesContainsSecond) {
-                mines[mineId]!!.sites.add(first)
-            }
+            mines[minesContainsSecond[0]]!!.sites.add(first)
             return
         }
         if (minesContainsSecond.isEmpty()) {
-            for (mineId in minesContainsFirst) {
-                mines[mineId]!!.sites.add(second)
-            }
+            mines[minesContainsFirst[0]]!!.sites.add(second)
             return
         }
-        //both are not empty
         if (!minesContainsFirst.contains(minesContainsSecond[0])) {
             //set1 + set2
             val newSet = (mines[minesContainsFirst[0]]!!.sites + mines[minesContainsSecond[0]]!!.sites).toMutableSet()
@@ -124,17 +125,26 @@ class Graph {
         }
     }
 
-    fun findWeightsSites(mine: Int) {
+    fun setWeights(setId: Int) {
+        val setNeighbors = mutableSetOf<Int>()
+        getSites(setId).forEach { site -> setNeighbors.addAll(getNeighbors(site).keys
+                .filter { key -> getNeighbors(site)[key] == VertexState.Neutral && !ourSites.contains(key) }) }
+        //&& !ourSites.contains(key) -> getSites(setId)?
+        val setMines = getAllMines().filter { getSites(it) === getSites(setId) }.toSet()
+        setNeighbors.forEach { neighbor -> setWeight(neighbor, setMines.map { getDistance(neighbor)[it]!! }.sum()) }
+    }
+
+    private fun findSitesWeights(mine: Int) {
         val queue = mutableListOf<Int>()
         queue.add(mine)
-        vertices[mine]!!.shortestWays.put(mine, 0)
+        vertices[mine]!!.distance.put(mine, 0)
         val visited = mutableSetOf(mine)
         while (queue.isNotEmpty()) {
             val next = queue[0]
             queue.removeAt(0)
             for (neighbor in vertices[next]!!.neighbors.keys) {
                 if (neighbor !in visited) {
-                    vertices[neighbor]!!.shortestWays.put(mine, vertices[next]!!.shortestWays[mine]!! + 1)
+                    vertices[neighbor]!!.distance.put(mine, vertices[next]!!.distance[mine]!! + 1)
                     queue.add(neighbor)
                     visited.add(neighbor)
                 }
