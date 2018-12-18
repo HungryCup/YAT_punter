@@ -21,14 +21,12 @@ object Arguments {
 }
 
 fun main(args: Array<String>) {
-    val args1: Array<String> = arrayOf("-u", "kotoed.icc.spbstu.ru", "-p", "50005")
-    Arguments.use(args1)
-    //Arguments.use(args)
+    Arguments.use(args)
     println("Hi, I am YAT")
     val protocol = Protocol(Arguments.url, Arguments.port)
     val graph = Graph()
     val intellect = Intellect(graph, protocol)
-    protocol.handShake("Average Joe, yo!")
+    protocol.handShake("YAT")
     val setupData = protocol.setup()
     graph.init(setupData)
     println("Sites: ${graph.getAllSites().size}")
@@ -56,10 +54,11 @@ fun main(args: Array<String>) {
                             graph.update(move.claim)
                         }
                     }
-                    println("Moves left: ${graph.getAllRivers().size - moveNumber++}")
+                    moveNumber++
                 }
             }
         }
+        println("Moves left: ${graph.getAllRivers().size - moveNumber}")
         println("YAT thin'")
         intellect.makeMove()
         println("YAT genius!")
