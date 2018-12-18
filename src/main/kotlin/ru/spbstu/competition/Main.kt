@@ -7,8 +7,6 @@ import ru.spbstu.competition.game.Intellect
 import ru.spbstu.competition.protocol.Protocol
 import ru.spbstu.competition.protocol.data.*
 
-private var moveNumber = 1
-
 object Arguments {
     @Option(name = "-u", usage = "Specify server url")
     var url: String = ""
@@ -26,7 +24,7 @@ fun main(args: Array<String>) {
     val protocol = Protocol(Arguments.url, Arguments.port)
     val graph = Graph()
     val intellect = Intellect(graph, protocol)
-    protocol.handShake("YAT")
+    protocol.handShake("YAT, aka Yet Another Team")
     val setupData = protocol.setup()
     graph.init(setupData)
     println("Sites: ${graph.getAllSites().size}")
@@ -54,11 +52,9 @@ fun main(args: Array<String>) {
                             graph.update(move.claim)
                         }
                     }
-                    moveNumber++
                 }
             }
         }
-        println("Moves left: ${graph.getAllRivers().size - moveNumber}")
         println("YAT thin'")
         intellect.makeMove()
         println("YAT genius!")

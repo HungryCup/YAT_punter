@@ -27,7 +27,6 @@ class Graph {
     fun init(setup: Setup) {
         myId = setup.punter
         punters = setup.punters
-        println("Num of punters: ${setup.punters}")
         for ((id) in setup.map.sites) {
             addSite(id)
         }
@@ -181,7 +180,6 @@ class Graph {
             return
         }
         if (setContainsFirst != setContainsSecond) {
-            //set1 + set2
             val newSetOfMines = (setsOfMines[setContainsFirst]!!.mines + setsOfMines[setContainsSecond]!!.mines).toMutableSet()
             val newSetOfSites = (setsOfMines[setContainsFirst]!!.sites + setsOfMines[setContainsSecond]!!.sites).toMutableSet()
             setsOfMines.remove(setContainsSecond)
@@ -228,9 +226,8 @@ class Graph {
 
     private fun setAreaWeightsBySetId(setId: Int) {
         setAreaBySetId(setId, findArea(myId, getSitesBySetId(setId)).toMutableSet())
-        getAreaBySetId(setId).forEach { site -> setWeight(site, getMinesBySetId(setId).map { getDistance(site)[it]!! }.sum()) }
-        println("AREA SIZE = ${getAreaBySetId(setId).size}      " +
-                "MAX WEIGHT = ${getAreaBySetId(setId).map { site -> getWeight(site) }.max()}")
+        getAreaBySetId(setId).forEach { site ->
+            setWeight(site, getMinesBySetId(setId).map { getDistance(site)[it]!! }.sum()) }
     }
 
     private fun findSitesDistances(mine: Int) {
