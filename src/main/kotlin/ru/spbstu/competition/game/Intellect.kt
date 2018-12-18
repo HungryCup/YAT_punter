@@ -6,9 +6,7 @@ import ru.spbstu.competition.protocol.data.River
 import java.util.*
 
 class Intellect(val graph: Graph, val protocol: Protocol) {
-
-    val smallDepth = 5//try 1,2
-    val shallowDepth = 17//
+    val shallowDepth = 17
     var gameStage = 0
     var currentSetOfMines = -1
     var nextSetOfMines = -1
@@ -16,11 +14,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
     var setContainsMaxSiteInArea = -1
     var currentEnemy = -1
 
-    //что если врагов нет
     fun init() {
-        if (graph.getAllMines().size < 2) {//особый режим игры?
-            return
-        }
         if (graph.punters > 1) currentEnemy = (graph.myId + 1) % graph.punters
     }
 
@@ -267,7 +261,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
         throw IllegalArgumentException()
     }
 
-    private fun try00(): River {
+    private fun try0(): River {
         var source = -1
         var min = Int.MAX_VALUE
         graph.getAllMines().filter { mine -> graph.getNeighbors(mine).keys.count { neighbor ->
@@ -292,7 +286,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
                     ?: neutralNeighbors.find { neighbor ->
                 graph.isSingleRiverInLocalArea(shallowDepth, source, neighbor) }
                     ?: neutralNeighbors.find { neighbor -> importantSites.contains(neighbor) }
-                    ?: neutralNeighbors[0]//unreal??
+                    ?: neutralNeighbors[0]
             return River(source, target)
         }
         graph.getAllMines().forEach { mine ->//захват рек на соединении mines и одновременно мостов
@@ -351,7 +345,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
     }
 
     //Если одно из множеств соединилась с сторонним, то происходит перевыбор множеств
-    private fun try11(): River {
+    private fun try1(): River {
         while (true) {
             try {
                 try {
@@ -360,7 +354,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
                 if (graph.punters > 1) try {//противник(и) есть! захват глобальных мостов противника
                     return getGlobalBridge(currentEnemy)
                 } catch (e: IllegalArgumentException) {} finally { updateCurrentEnemy() }
-                if (graph.punters > 1) try {//противник(и) есть! захват наиболее часто встречающихся рек противника
+                if (graph.punters == 2) try {//дуэль! захват наиболее часто встречающихся рек противника
                     return getGlobalRiver(currentEnemy)
                 } catch (e: IllegalArgumentException) {} finally { updateCurrentEnemy() }
                 try {
@@ -375,15 +369,14 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
                     riversDepths[river] = graph.depthOfBridge(graph.myId, Int.MAX_VALUE, river.source, river.target)
                 }
                 var maxDepth = -1
-                var result = River(-1, -1)
+                var result: River? = null
                 riversDepths.forEach { river, depth ->
                     if (depth > maxDepth) {
                         maxDepth = depth
                         result = river
                     }
                 }
-                if (result.source == -1 || result.target == -1) throw Exception()
-                return result
+                return result!!
             } catch (e: IllegalArgumentException) {
                 try {
                     updateCurrentAndNextSetsOfMines()
@@ -396,7 +389,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
         }
     }
 
-    private fun try22(): River {
+    private fun try2(): River {
         while (true) {
             try {
                 val way = getWayForTry2(setContainsMaxSiteInArea, maxSite)
@@ -414,29 +407,19 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
                 }
                 return result!!
             } catch (e: IllegalArgumentException) {
-                e.printStackTrace()
-                updateMaxSiteAndSetContainsItInArea()
+                try {
+                    updateMaxSiteAndSetContainsItInArea()
+                } catch (e: IllegalArgumentException) {
+                    if (graph.punters < 2) gameStage++
+                    throw IllegalArgumentException()
+                }
+
             }
         }
     }
 
-    /*private fun getMaxPointsEnemy(): Int {//если игроков больше одного
-        graph.findPoints()
-        var maxPoints = -1L
-        var maxPunter = -1
-        for (punter in 0 until graph.punters) {
-            if (punter == graph.myId) continue
-            if (graph.points[punter]!! > maxPoints) {
-                maxPoints = graph.points[punter]!!
-                maxPunter = punter
-            }
-        }
-        return maxPunter
-    }*/
-
-    //Закрывать доступ к site с большим весом?
-    private fun try25(): River {
-        //val maxEnemy = getMaxPointsEnemy()
+    //Закрывать доступ к sites
+    private fun try3(): River {
         val enemySets = getEnemySets(currentEnemy)
         val areas = mutableSetOf<Int>()
         enemySets.values.forEach { set ->
@@ -450,7 +433,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
     }
 
     //захват оставшихся
-    private fun try33(): River {
+    private fun try4(): River {
         for (site in graph.getAllSites()) {
             val neighbor = graph.getNeighbors(site).keys.find { key -> graph.getNeighbors(site)[key] == -1 }
             if (neighbor != null) {
@@ -463,11 +446,11 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
     fun makeMove() {
         try {
             val result = when (gameStage) {
-                0 -> try00()
-                1 -> try11()
-                2 -> try22()
-                3 -> try25()
-                4 -> try33()
+                0 -> try0()
+                1 -> try1()
+                2 -> try2()
+                3 -> try3()
+                4 -> try4()
                 else -> return protocol.passMove()
             }
             println("Game stage: $gameStage")

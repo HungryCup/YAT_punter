@@ -11,28 +11,6 @@ class Graph {
     private val mines = mutableSetOf<Int>()
     private val rivers = mutableSetOf<River>()
     private val setsOfMines = mutableMapOf<Int, SetOfMines>()
-    private val ourSites = mutableSetOf<Int>()
-    //val points = mutableMapOf<Int, Long>()
-    /*fun findPoints() {
-       for (punter in 0 until punters) {
-           points[punter] = 0
-           if (punter == myId) {
-               getAllSetsOfMines().forEach { setOfMine ->
-                   getSitesBySetId(setOfMine).forEach { site ->
-                       setWeight(site, getMinesBySetId(setOfMine).map { getDistance(site)[it]!! }.sum())
-                   }
-                   points[myId] = points[myId]!! + getSitesBySetId(setOfMine).map { site -> getWeight(site) }.sum()
-               }
-           } else {
-               getAllMines().forEach { mine ->
-                   val set = getPartOfGraph(punter, mine)
-                   val mines = set.filter { site -> getAllMines().contains(site) }
-                   set.forEach { site -> setWeight(site, mines.map { getDistance(site)[it]!! }.sum()) }
-                   points[punter] = points[punter]!! + set.map { site -> getWeight(site) }.sum()
-               }
-           }
-       }
-   }*/
 
     private class Site {
         val neighbors = mutableMapOf<Int, Int>()
@@ -89,13 +67,6 @@ class Graph {
     fun setAreaBySetId(setId: Int, area: MutableSet<Int>) {
         setsOfMines[setId]!!.area = area
     }
-
-    /*fun getNeighborsBySetId(setOfMines: Int): MutableSet<Int> {
-        val neighbors = mutableSetOf<Int>()
-        getSitesBySetId(setOfMines).forEach { site -> neighbors.addAll(getNeighbors(site).filter { (neighbor, siteState) ->
-            siteState == -1 && !getSitesBySetId(setOfMines).contains(neighbor) }.keys) }
-        return neighbors
-    }*/
 
     fun getWeight(id: Int) = sites[id]!!.weight
 
