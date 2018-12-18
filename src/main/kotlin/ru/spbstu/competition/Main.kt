@@ -7,6 +7,8 @@ import ru.spbstu.competition.game.Intellect
 import ru.spbstu.competition.protocol.Protocol
 import ru.spbstu.competition.protocol.data.*
 
+private var moveNumber = 1
+
 object Arguments {
     @Option(name = "-u", usage = "Specify server url")
     var url: String = ""
@@ -19,26 +21,21 @@ object Arguments {
 }
 
 fun main(args: Array<String>) {
-    //val args1: Array<String> = arrayOf("-u", "kotoed.icc.spbstu.ru", "-p", "50005")
-    //Arguments.use(args1)
-    Arguments.use(args)
-
+    val args1: Array<String> = arrayOf("-u", "kotoed.icc.spbstu.ru", "-p", "50003")
+    Arguments.use(args1)
+    //Arguments.use(args)
     println("Hi, I am YAT")
-
     val protocol = Protocol(Arguments.url, Arguments.port)
     val graph = Graph()
     val intellect = Intellect(graph, protocol)
-
-    protocol.handShake("YAT")
-
+    protocol.handShake("Joe")
     val setupData = protocol.setup()
     graph.init(setupData)
+    println("Sites: ${graph.getAllSites().size}")
+    println("Rivers: ${graph.getAllRivers().size}")
     intellect.init()
-
     println("Received id = ${setupData.punter}")
-
     protocol.ready()
-
     gameloop@ while(true) {
         val message = protocol.serverMessage()
         when(message) {
@@ -59,6 +56,7 @@ fun main(args: Array<String>) {
                             graph.update(move.claim)
                         }
                     }
+                    println("Move number: ${moveNumber++}")
                 }
             }
         }

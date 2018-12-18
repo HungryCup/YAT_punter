@@ -3,141 +3,155 @@ package ru.spbstu.competition.game
 
 import ru.spbstu.competition.protocol.Protocol
 import ru.spbstu.competition.protocol.data.River
+import java.util.*
 
 class Intellect(val graph: Graph, val protocol: Protocol) {
 
     var gameStage = 0
-    var currentMineId = -1
-    var nextMineId = -1
+    var currentSetOfMines = -1
+    var nextSetOfMines = -1
+    val random = Random()
 
     fun init() {
-        if (graph.getAllMines().size < 2) {//особый режим игры???
+        if (graph.getAllMines().size < 2) {//особый режим игры?
             return
         }
     }
 
-    private fun getNextRiver(first: Int, second: Int): River {//second is always "mine"
-        if (!graph.getAllSites().contains(first) || !graph.getAllSites().contains(second)) throw IllegalArgumentException("site(s) doesn't exist")
-        if (graph.getSites(second)!!.contains(first)) throw IllegalArgumentException("already connected")
+    private fun getNextRiver(firstSet: Int, secondSet: Int): River {
+        if (!graph.getAllSetsOfMines().contains(firstSet) || !graph.getAllSetsOfMines().contains(secondSet))
+            throw IllegalArgumentException("set(s) doesn't exist")
+        if (firstSet == secondSet) throw IllegalArgumentException("it is one set")
         val queue = mutableListOf<Int>()
-        queue.add(first)
-        val visited = mutableSetOf(first)
+        queue.addAll(graph.getSitesBySetId(firstSet))
+        val visited = mutableSetOf<Int>()
+        visited.addAll(graph.getSitesBySetId(firstSet))
         while (queue.isNotEmpty()) {
             val current = queue[0]
             queue.removeAt(0)
-            for ((id, vertexState) in graph.getNeighbors(current)) {
-                if (vertexState == VertexState.Enemy || id in visited) continue
-                if (graph.getSites(second).contains(id)) {
-                    return River(current, id)
-                }
-                queue.add(id)
-                visited.add(id)
+            for ((neighbor, siteState) in graph.getNeighbors(current)) {
+                if (siteState != -1 && siteState != graph.myId || neighbor in visited) continue
+                if (graph.getSitesBySetId(secondSet).contains(neighbor)) return River(current, neighbor)
+                val partOfGraph = graph.getPartOfGraph(neighbor)
+                queue.addAll(partOfGraph)
+                visited.addAll(partOfGraph)
             }
         }
         throw IllegalArgumentException("impossible to connect")
     }
 
-    private fun updateCurrentAndNextMines() {
-        findMines@for (i in 0..graph.getAllMines().size - 2) {
-            for (j in i + 1 until graph.getAllMines().size) {
-                if (graph.getSites(graph.getAllMines().elementAt(i))
-                        !== graph.getSites(graph.getAllMines().elementAt(j))
-                        && !graph.getIncompatibleSets(graph.getAllMines().elementAt(i))
-                        .contains(graph.getAllMines().elementAt(j))) {
-                    currentMineId = graph.getAllMines().elementAt(i)
-                    nextMineId = graph.getAllMines().elementAt(j)
-                    return
+    //Улучшить выбор множеств
+    private fun updateCurrentAndNextSetsOfMines() {
+        val compatibleSetsOfMines = mutableSetOf<Pair<Int, Int>>()
+        for (i in 0..graph.getAllSetsOfMines().size - 2) {
+            for (j in i + 1 until graph.getAllSetsOfMines().size) {
+                if (!graph.getIncompatibleSetsBySetId(graph.getAllSetsOfMines().elementAt(i))
+                        .contains(graph.getAllSetsOfMines().elementAt(j))) {
+                    //currentSetOfMines = graph.getAllSetsOfMines().elementAt(i)
+                    //nextSetOfMines = graph.getAllSetsOfMines().elementAt(j)
+                    compatibleSetsOfMines.add(Pair(graph.getAllSetsOfMines().elementAt(i), graph.getAllSetsOfMines().elementAt(j)))
+                    //return
                 }
             }
         }
-        throw IllegalArgumentException()
+        if (compatibleSetsOfMines.isEmpty()) throw IllegalArgumentException()
+        val id = random.nextInt(compatibleSetsOfMines.size)
+        currentSetOfMines = compatibleSetsOfMines.elementAt(id).first
+        nextSetOfMines = compatibleSetsOfMines.elementAt(id).second
     }
 
+    //Улучшить выбор mine и конкретной реки (в зависимости от количества игроков)
+    //Быть может не следует занимать все реки mines
     private fun try0(): River {
         var min = Int.MAX_VALUE
         var source = -1
         for (mineId in graph.getAllMines()) {
-            val neutral = graph.getNeighbors(mineId).keys.count { key -> graph.getNeighbors(mineId)[key] == VertexState.Neutral }
+            val neutral = graph.getNeighbors(mineId).keys.count { key -> graph.getNeighbors(mineId)[key] == -1 }
+            val our = graph.getNeighbors(mineId).keys.count { key -> graph.getNeighbors(mineId)[key] == graph.myId }
+            //val enemy = graph.getNeighbors(mineId).keys.count { key -> graph.getNeighbors(mineId)[key] == SiteState.Enemy }
             if (neutral == 0) continue
-            val our = graph.getNeighbors(mineId).keys.count { key -> graph.getNeighbors(mineId)[key] == VertexState.Our }
-            val enemy = graph.getNeighbors(mineId).keys.count { key -> graph.getNeighbors(mineId)[key] == VertexState.Enemy }
-            val sum = neutral + enemy + 2 * our
+            if (neutral == 1 && our == 0) {
+                source = mineId
+                break
+            }
+            val sum = neutral + 2 * our
             if (sum < min) {
                 source = mineId
                 min = sum
             }
         }
-        if (source == -1) {//нетральных соседей нет ни у одной mine
-            if (graph.getAllMines().size > 1) {
-                updateCurrentAndNextMines()
-            } else {
-                //
-            }
+        if (source == -1) {//захват рек у mines закончен
+            updateCurrentAndNextSetsOfMines()
             throw IllegalArgumentException()
         }
-        //val target = graph.getNeighbors(source).keys.find { key -> graph.getNeighbors(source)[key] == VertexState.Neutral }!!
         var target = -1
-        for ((key, _) in graph.getNeighbors(source)) {
-            if (graph.getNeighbors(source)[key] == VertexState.Neutral) {
-                target = key
-                if (graph.getAllMines().contains(key)) break
+        for ((neighbor, siteState) in graph.getNeighbors(source)) {
+            if (siteState == -1) {
+                target = neighbor
+                if (graph.ourSites.contains(neighbor)) break
             }
         }
         return River (source, target)
     }
 
+    //try 0.25 блочить лёгие mine противника
+    //try 0.5: отойти от mines на более безопасное расстояние
+    //try 0.75: занять мосты
+    //try1: занимать реки наперёд, в тех местах, где меньше разветвлений
+    //На протяжении всего try1, если нас пытаются заблочить, поддерживать свою свободу
+
+    //Если одно из множеств соединилась с сторонним, то происходит перевыбор множеств
     private fun try1(): River {
+        if (graph.getAllSetsOfMines().size < 2) {//or (... == 1)
+            graph.setAreaWeights()
+            throw IllegalArgumentException()
+        }
         while (true) {
             try {
-                val result = getNextRiver(currentMineId, nextMineId)
-                val temp = currentMineId
-                currentMineId = nextMineId
-                nextMineId = temp
+                val result = getNextRiver(currentSetOfMines, nextSetOfMines)
+                val temp = currentSetOfMines
+                currentSetOfMines = nextSetOfMines
+                nextSetOfMines = temp
                 return result
             } catch (e: IllegalArgumentException) {
                 e.printStackTrace()
-                graph.getAllMines()
-                        .filter { graph.getSites(it) === graph.getSites(currentMineId) }
-                        .forEach { mineId ->
-                            graph.getAllMines()
-                                    .filter { graph.getSites(it) === graph.getSites(nextMineId) }
-                                    .forEach {
-                                        graph.setIncompatibleSets(mineId, it)
-                                        graph.setIncompatibleSets(it, mineId)
-                                    }
-                        }
-                updateCurrentAndNextMines()
+                if (graph.getAllSetsOfMines().contains(currentSetOfMines) && graph.getAllSetsOfMines().contains(nextSetOfMines))
+                    graph.setIncompatibleSetsBySetId(currentSetOfMines, nextSetOfMines)
+                try {
+                    updateCurrentAndNextSetsOfMines()
+                } catch (e: IllegalArgumentException) {
+                    graph.setAreaWeights()
+                    throw e
+                }
             }
         }
     }
 
+    //try2 пускать щупальца в стороны (к site с большим весом)
+    //Закрывать доступ к site с большим весом?
     private fun try2(): River {
-        val setNeighbors = mutableSetOf<Int>()
-        for (ourSite in graph.ourSites) {
-            setNeighbors.addAll(graph.getNeighbors(ourSite).keys
-                    .filter { key -> graph.getNeighbors(ourSite)[key] == VertexState.Neutral && !graph.ourSites.contains(key)})
-        }
-        if (setNeighbors.isEmpty()) throw IllegalArgumentException()
-        for (mine in graph.getAllMines()) {//не оптимально
-            graph.setWeights(mine)
-        }
-        var max = -1L
+        val setOfAllNeighbors = mutableSetOf<Int>()
+        graph.getAllSetsOfMines().forEach { setOfMines -> setOfAllNeighbors.addAll(graph.getNeighborsBySetId(setOfMines)) }
+        if (setOfAllNeighbors.isEmpty()) throw IllegalArgumentException()
+        var max = -1
         var target = -1
-        for (neighbor in setNeighbors) {
+        for (neighbor in setOfAllNeighbors) {
             if (graph.getWeight(neighbor) > max) {
                 max = graph.getWeight(neighbor)
                 target = neighbor
             }
         }
         //if (target == -1) throw Exception()
+        println("Plus $max points")
         val source = graph.getNeighbors(target).keys
-                .find { key -> graph.ourSites.contains(key) && graph.getNeighbors(target)[key] == VertexState.Neutral }!!
+                .find { key -> graph.ourSites.contains(key) && graph.getNeighbors(target)[key] == -1 }!!
         return River(source, target)
     }
 
+    //Закрывать доступ к site с большим весом?
     private fun try3(): River {
         for (site in graph.getAllSites()) {
-            val neighbor = graph.getNeighbors(site).keys.find { key -> graph.getNeighbors(site)[key] == VertexState.Neutral }
+            val neighbor = graph.getNeighbors(site).keys.find { key -> graph.getNeighbors(site)[key] == -1 }
             if (neighbor != null) {
                 return River(site, neighbor)
             }
