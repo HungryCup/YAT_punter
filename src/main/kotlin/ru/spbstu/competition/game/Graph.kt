@@ -6,11 +6,12 @@ import ru.spbstu.competition.protocol.data.Setup
 
 class Graph {
     var myId = -1
+    var punters = -1
     private val sites = mutableMapOf<Int, Site>()
     private val mines = mutableSetOf<Int>()
     private val rivers = mutableSetOf<River>()
     private val setsOfMines = mutableMapOf<Int, SetOfMines>()
-    val ourSites = mutableSetOf<Int>()
+    private val ourSites = mutableSetOf<Int>()
     
     private class Site {
         val neighbors = mutableMapOf<Int, Int>()
@@ -22,12 +23,12 @@ class Graph {
         var mines = mutableSetOf(id)
         var sites = mutableSetOf(id)
         var area = mutableSetOf<Int>()
-        var incompatibleSets = mutableSetOf<Int>()
     }
 
-    //Следить за врагами, вести счёт, записать количество игроков
+    //Следить за врагами, вести счёт
     fun init(setup: Setup) {
         myId = setup.punter
+        punters = setup.punters
         println("Num of punters: ${setup.punters}")
         for ((id) in setup.map.sites) {
             addSite(id)
@@ -65,13 +66,6 @@ class Graph {
 
     fun getAreaBySetId(setId: Int) = setsOfMines[setId]!!.area
 
-    fun getIncompatibleSetsBySetId(setId: Int): MutableSet<Int> = setsOfMines[setId]!!.incompatibleSets
-
-    fun setIncompatibleSetsBySetId(firstSetId: Int, secondSetId: Int) {
-        getIncompatibleSetsBySetId(firstSetId).add(secondSetId)
-        getIncompatibleSetsBySetId(secondSetId).add(firstSetId)
-    }
-
     fun getNeighborsBySetId(setOfMines: Int): MutableSet<Int> {
         val neighbors = mutableSetOf<Int>()
         getSitesBySetId(setOfMines).forEach { site -> neighbors.addAll(getNeighbors(site).filter { (neighbor, siteState) ->
@@ -103,6 +97,101 @@ class Graph {
         sites[second]!!.neighbors[first] = siteState
     }
 
+    fun isBridgeInDepth(depth: Int, source: Int, target: Int): Boolean {
+        val realSiteState = getNeighbors(source)[target]!!//не обязвтельно, можно -1
+        setNeighborsState(source, target, myId + 1)
+        var result = true
+        val setContainsTarget = getPartOfGraph(target)
+        val setContainsSource = getPartOfGraph(source)
+        val queue = mutableListOf<Int>()
+        queue.addAll(setContainsTarget)
+        val visited = mutableMapOf<Int, Int>()
+        setContainsTarget.forEach { site -> visited[site] = 0}
+        queueLoop@while (queue.isNotEmpty()) {
+            val current = queue[0]
+            queue.removeAt(0)
+            val currentDepth = visited[current]!! + 1
+            if (currentDepth > depth) break
+            for ((neighbor, siteState) in getNeighbors(current)) {
+                if (siteState != -1 && siteState != myId || neighbor in visited.keys) continue
+                if (setContainsSource.contains(neighbor)) {
+                    result = false
+                    break@queueLoop
+                }
+                val partOfGraph = getPartOfGraph(neighbor)
+                queue.addAll(partOfGraph)
+                partOfGraph.forEach { site -> visited[site] = currentDepth}
+            }
+        }
+        setNeighborsState(source, target, realSiteState)//-1
+        return result
+    }
+
+    fun depthOfBridge(depth: Int, source: Int, target: Int): Int {
+        val realSiteState = getNeighbors(source)[target]!!//не обязвтельно, можно -1
+        setNeighborsState(source, target, myId + 1)
+        var result = depth
+        val setContainsTarget = getPartOfGraph(target)
+        val setContainsSource = getPartOfGraph(source)
+        val queue = mutableListOf<Int>()
+        queue.addAll(setContainsTarget)
+        val visited = mutableMapOf<Int, Int>()
+        setContainsTarget.forEach { site -> visited[site] = 0}
+        queueLoop@while (queue.isNotEmpty()) {
+            val current = queue[0]
+            queue.removeAt(0)
+            val currentDepth = visited[current]!! + 1
+            if (currentDepth > depth) break
+            for ((neighbor, siteState) in getNeighbors(current)) {
+                if (siteState != -1 && siteState != myId || neighbor in visited.keys) continue
+                if (setContainsSource.contains(neighbor)) {
+                    result = currentDepth
+                    break@queueLoop
+                }
+                val partOfGraph = getPartOfGraph(neighbor)
+                queue.addAll(partOfGraph)
+                partOfGraph.forEach { site -> visited[site] = currentDepth }
+            }
+        }
+        setNeighborsState(source, target, realSiteState)//-1
+        return result
+    }
+
+    fun isSingleRiverInLocalArea(depth: Int, mine: Int, target: Int): Boolean {
+        val realSiteState = getNeighbors(mine)[target]!!//не обязвтельно, можно -1
+        setNeighborsState(mine, target, myId + 1)
+        var result = true
+        val setContainsTarget = getPartOfGraph(target)
+        val setContainsSource = getPartOfGraph(mine)
+        val queue = mutableListOf<Int>()
+        queue.addAll(setContainsTarget)
+        val visited = mutableMapOf<Int, Int>()
+        setContainsTarget.forEach { site -> visited[site] = 0}
+        queueLoop@while (queue.isNotEmpty()) {
+            val current = queue[0]
+            queue.removeAt(0)
+            val currentDepth = visited[current]!! + 1
+            if (currentDepth > depth) break//is bridge
+            for ((neighbor, siteState) in getNeighbors(current)) {
+                if (siteState != -1 && siteState != myId || neighbor in visited.keys) continue
+                if (setContainsSource.contains(neighbor)) {
+                    if (getAllMines().contains(neighbor)) {//like neighbor == mine in special case
+                        result = true
+                        break
+                    } else {
+                        result = false
+                        break@queueLoop
+                    }
+                }
+                val partOfGraph = getPartOfGraph(neighbor)
+                queue.addAll(partOfGraph)
+                partOfGraph.forEach { site -> visited[site] = currentDepth}
+            }
+        }
+        setNeighborsState(mine, target, realSiteState)//-1
+        return result
+    }
+
     fun update(claim: Claim) {
         when (claim.punter) {
             myId -> {
@@ -131,22 +220,10 @@ class Graph {
         println("${setsOfMines.keys}")
         if (setContainsFirst == -1 && setContainsSecond == -1) return
         if (setContainsFirst == -1) {
-            //setsOfMines[setContainsSecond]!!.sites.add(first)
-            ////setsOfMines[setContainsSecond]!!.neighbors.remove(first)
-            //setsOfMines[setContainsSecond]!!.neighbors.addAll(getPartOfGraphNeighbors(first))
-            ////setsOfMines[setContainsSecond]!!.neighbors.addAll(getNeighbors(first)
-                    ////.filter { (id, siteState) -> siteState == SiteState.Neutral
-                            ////&& !getSitesBySetId(setContainsSecond)!!.contains(id) }.keys)
             setsOfMines[setContainsSecond]!!.sites.addAll(getPartOfGraph(first))
             return
         }
         if (setContainsSecond == -1) {
-            //setsOfMines[setContainsFirst]!!.sites.add(second)
-            ////setsOfMines[setContainsFirst]!!.neighbors.remove(second)
-            //setsOfMines[setContainsFirst]!!.neighbors.addAll(getPartOfGraphNeighbors(second))
-            ////setsOfMines[setContainsFirst]!!.neighbors.addAll(getNeighbors(second)
-                    ////.filter { (id, siteState) -> siteState == SiteState.Neutral
-                            ////&& !getSitesBySetId(setContainsFirst)!!.contains(id) }.keys)
             setsOfMines[setContainsFirst]!!.sites.addAll(getPartOfGraph(second))
             return
         }
@@ -154,74 +231,29 @@ class Graph {
             //set1 + set2
             val newSetOfMines = (setsOfMines[setContainsFirst]!!.mines + setsOfMines[setContainsSecond]!!.mines).toMutableSet()
             val newSetOfSites = (setsOfMines[setContainsFirst]!!.sites + setsOfMines[setContainsSecond]!!.sites).toMutableSet()
-            val newSetOfIncompatibleSets = (setsOfMines[setContainsFirst]!!.incompatibleSets
-                    + setsOfMines[setContainsSecond]!!.incompatibleSets).toMutableSet()
-            ////пересчёт neighbors
-            //setsOfMines[setContainsFirst]!!.neighbors.remove(second)
-            //setsOfMines[setContainsSecond]!!.neighbors.remove(first)
-            ////remove more neighbors
-            //val newSetOfNeighbors = setsOfMines[setContainsFirst]!!.sites + setsOfMines[setContainsSecond]!!.sites
             setsOfMines.remove(setContainsSecond)
             setsOfMines[setContainsFirst]!!.mines = newSetOfMines
             setsOfMines[setContainsFirst]!!.sites = newSetOfSites
-            setsOfMines[setContainsFirst]!!.incompatibleSets = newSetOfIncompatibleSets
-            for (incompatibleSet in newSetOfIncompatibleSets) {
-                setsOfMines[incompatibleSet]!!.incompatibleSets.remove(setContainsSecond)
-                setsOfMines[incompatibleSet]!!.incompatibleSets.add(setContainsFirst)
-            }
         }
     }
 
-    /*private fun updateAllBorders(setId: Int) {
-
-    }
-
-    private fun updateBordersOnOurClaim(setId: Int, first: Int, second: Int) {//first - our, second - partOfGraph
-        getBordersBySetId(setId).remove(first)
-
-        getPartOfGraph(second).forEach { site -> getBordersBySetId(setId) }
-
-
-
-        getPartOfGraph(second)
-        if (getNeighbors(second).keys.find { neighbor -> getNeighbors(second)[neighbor] == SiteState.Neutral
-                && !getSitesBySetId(setId).contains(neighbor) } != null) getBordersBySetId(setId).add(second)
-    }
-
-    private fun updateBordersOnEnemyClaim(first: Int, second: Int) {
-        getBordersBySetId(setId).remove(first)
-        getBordersBySetId(setId).remove(second)
-        if (ourSites.contains(first) && getNeighbors(first).keys.find { neighbor -> getNeighbors(first)[neighbor] == SiteState.Neutral
-                && !getSitesBySetId(setId).contains(neighbor) } != null) getBordersBySetId(setId).add(first)
-        if (ourSites.contains(second) && getNeighbors(second).keys.find { neighbor -> getNeighbors(second)[neighbor] == SiteState.Neutral
-                && !getSitesBySetId(setId).contains(neighbor) } != null) getBordersBySetId(setId).add(second)
-    }
-
-    private fun updateBorders() {//не оптимально проверять всё во всех ситуациях
-        setsOfMines.values.forEach { setOfMines ->
-            setOfMines.borders.clear()
-            setOfMines.borders.addAll(setOfMines.sites.filter { site -> getNeighbors(site).keys.find { key ->
-                getNeighbors(site)[key] == SiteState.Neutral && !setOfMines.sites.contains(key) } != null }) }
-    }*/
-
     fun getPartOfGraph(begin: Int): Set<Int> {
-        val queue = mutableListOf<Int>()
-        queue.add(begin)
+        val queue = mutableListOf(begin)
         val visited = mutableSetOf(begin)
         while (queue.isNotEmpty()) {
-            val next = queue[0]
+            val current = queue[0]
             queue.removeAt(0)
-            for ((id, neighbor) in sites[next]!!.neighbors) {
-                if (id !in visited && neighbor == myId) {
-                    queue.add(id)
-                    visited.add(id)
+            for ((neighbor, siteState) in sites[current]!!.neighbors) {
+                if (neighbor !in visited && siteState == myId) {
+                    queue.add(neighbor)
+                    visited.add(neighbor)
                 }
             }
         }
         return visited
     }
 
-    private fun findArea(setId: Int): MutableSet<Int> {
+    fun findArea(setId: Int) {
         val queue = mutableListOf<Int>()
         queue.addAll(getSitesBySetId(setId))
         val visited = mutableSetOf<Int>()
@@ -235,32 +267,30 @@ class Graph {
                 visited.add(neighbor)
             }
         }
-        return visited
+        visited.removeAll(getSitesBySetId(setId))
+        setsOfMines[setId]!!.area = visited
     }
 
     fun setAreaWeights() = setsOfMines.keys.forEach { setId -> setAreaWeightsBySetId(setId) }
 
     private fun setAreaWeightsBySetId(setId: Int) {
-        val area = findArea(setId)
-        area.forEach { site -> setWeight(site, getMinesBySetId(setId).map { getDistance(site)[it]!! }.sum()) }
-        println("AREA SIZE = ${area.size}      MAX WEIGHT = ${area.map { site -> getWeight(site) }.max()}")
-        getAreaBySetId(setId).addAll(area + getSitesBySetId(setId))
+        findArea(setId)
+        getAreaBySetId(setId).forEach { site -> setWeight(site, getMinesBySetId(setId).map { getDistance(site)[it]!! }.sum()) }
+        println("AREA SIZE = ${getAreaBySetId(setId).size}      MAX WEIGHT = ${getAreaBySetId(setId).map { site -> getWeight(site) }.max()}")
     }
 
     private fun findSitesDistances(mine: Int) {
-        val queue = mutableListOf<Int>()
-        queue.add(mine)
-        sites[mine]!!.distance.put(mine, 0)
+        val queue = mutableListOf(mine)
         val visited = mutableSetOf(mine)
+        sites[mine]!!.distance.put(mine, 0)
         while (queue.isNotEmpty()) {
-            val next = queue[0]
+            val current = queue[0]
             queue.removeAt(0)
-            for (neighbor in sites[next]!!.neighbors.keys) {
-                if (neighbor !in visited) {
-                    sites[neighbor]!!.distance.put(mine, sites[next]!!.distance[mine]!! + 1)
-                    queue.add(neighbor)
-                    visited.add(neighbor)
-                }
+            for (neighbor in getNeighbors(current).keys) {
+                if (neighbor in visited) continue
+                sites[neighbor]!!.distance.put(mine, sites[current]!!.distance[mine]!! + 1)
+                queue.add(neighbor)
+                visited.add(neighbor)
             }
         }
     }
