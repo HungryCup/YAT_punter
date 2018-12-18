@@ -26,7 +26,7 @@ fun main(args: Array<String>) {
     val protocol = Protocol(Arguments.url, Arguments.port)
     val graph = Graph()
     val intellect = Intellect(graph, protocol)
-    protocol.handShake("Average Joe, yo!")
+    protocol.handShake("BL-YAT")
     val setupData = protocol.setup()
     graph.init(setupData)
     println("Sites: ${graph.getAllSites().size}")
