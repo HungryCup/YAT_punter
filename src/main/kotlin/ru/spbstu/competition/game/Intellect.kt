@@ -361,7 +361,7 @@ class Intellect(val graph: Graph, val protocol: Protocol) {
                 try {
                     return getGlobalRiver(graph.myId)//захват наиболее часто встречающихся рек
                 } catch (e: IllegalArgumentException) {}
-                if (graph.punters != 2) try {//дуэль! захват наиболее часто встречающихся рек противника
+                if (graph.punters > 2) try {//дуэль! захват наиболее часто встречающихся рек противника
                     return getGlobalRiver(currentEnemy)
                 } catch (e: IllegalArgumentException) {}
                 val way = getWayForTry1(currentSetOfMines, nextSetOfMines)
